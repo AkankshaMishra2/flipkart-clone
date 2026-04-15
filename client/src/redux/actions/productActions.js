@@ -4,7 +4,8 @@ import axios from 'axios';
 export const getProducts = () => async (dispatch) => {
     try {
         console.log('Fetching catalog...');
-        const { data } = await axios.get(`http://localhost:8000/api/catalog`);
+        const url = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+        const { data } = await axios.get(`${url}/api/catalog`);
         dispatch({ type: actionTypes.GET_PRODUCTS_SUCCESS, payload: data });
 
     } catch (error) {
@@ -15,7 +16,8 @@ export const getProducts = () => async (dispatch) => {
 export const getProductDetails = (id) => async (dispatch) => {
     try {
         dispatch({ type: actionTypes.GET_PRODUCT_DETAILS_REQUEST });
-        const { data } = await axios.get(`http://localhost:8000/api/catalog/${id}`);
+        const url = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+        const { data } = await axios.get(`${url}/api/catalog/${id}`);
         console.log(data);
 
         dispatch({ type: actionTypes.GET_PRODUCT_DETAILS_SUCCESS, payload: data });

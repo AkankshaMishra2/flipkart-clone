@@ -1,332 +1,226 @@
-import { useState, useContext } from 'react';
-import { Box, Typography, makeStyles, TextField, Button, Grid, Divider } from '@material-ui/core';
+import { Box, Button, TextField, Typography, makeStyles, Grid, Paper, Snackbar } from '@material-ui/core';
+import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { LoginContext } from '../../context/ContextProvider';
-import { createOrder } from '../../service/api';
-import * as actionTypes from '../../redux/constants/cartConstants';
+import { CART_RESET } from '../../redux/constants/cartConstants';
+import TotalView from '../ShoppingBag/TotalView';
 
 const useStyle = makeStyles(theme => ({
     component: {
+        marginTop: 55,
         padding: '30px 135px',
+        display: 'flex',
         [theme.breakpoints.down('md')]: {
             padding: '15px 15px'
         },
         [theme.breakpoints.down('sm')]: {
-            padding: '15px 10px'
+            padding: '15px 0'
+        },
+        background: '#f2f2f2',
+        minHeight: '100vh',
+    },
+    container: {
+        background: '#fff',
+        borderRadius: 8,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        padding: '30px 40px',
+        animation: `$slideUp 0.6s ease-out`
+    },
+    "@keyframes slideUp": {
+        "0%": {
+            opacity: 0,
+            transform: "translateY(20px)"
+        },
+        "100%": {
+            opacity: 1,
+            transform: "translateY(0)"
         }
     },
     header: {
-        padding: '15px 24px',
-        background: '#fff',
-        borderBottom: '1px solid #f0f0f0'
-    },
-    leftComponent: {
-        paddingRight: 15,
-        [theme.breakpoints.down('sm')]: {
-            paddingRight: 0,
-            marginBottom: 15
-        }
-    },
-    formContainer: {
-        background: '#fff',
-        padding: '25px 30px',
-        [theme.breakpoints.down('sm')]: {
-            padding: '15px'
-        }
+        fontWeight: 600,
+        fontSize: 24,
+        marginBottom: 20,
+        color: '#2874f0',
+        borderBottom: '2px solid #f0f0f0',
+        paddingBottom: 15
     },
     textField: {
         marginBottom: 20,
-    },
-    summaryContainer: {
-        background: '#fff',
-        padding: '15px 24px'
-    },
-    cartItem: {
-        display: 'flex',
-        padding: '12px 0',
-        alignItems: 'center'
-    },
-    itemImage: {
-        width: 60,
-        height: 60,
-        marginRight: 15,
-        [theme.breakpoints.down('sm')]: {
-            width: 45,
-            height: 45,
-            marginRight: 10
-        }
-    },
-    greyTextColor: {
-        color: '#878787'
-    },
-    price: {
-        float: 'right'
-    },
-    totalAmount: {
-        fontSize: 18,
-        fontWeight: 600,
-        borderTop: '1px dashed #e0e0e0',
-        padding: '15px 0',
-        marginTop: 10
+        '& .MuiOutlinedInput-root': {
+            '&:hover fieldset': {
+                borderColor: '#2874f0',
+            },
+            '&.Mui-focused fieldset': {
+                borderColor: '#2874f0',
+            },
+        },
     },
     placeOrderBtn: {
-        background: '#fb641b',
+        background: 'linear-gradient(90deg, #fb641b 0%, #ff9f00 100%)',
         color: '#fff',
-        borderRadius: 2,
-        width: '100%',
-        height: 51,
-        marginTop: 20,
-        fontSize: 16,
-        '&:hover': {
-            background: '#e85d19'
-        }
-    },
-    stepTitle: {
+        height: 52,
+        borderRadius: 4,
         fontSize: 16,
         fontWeight: 600,
-        color: '#2874f0',
-        marginBottom: 15,
-        textTransform: 'uppercase'
+        marginTop: 20,
+        boxShadow: '0 4px 14px rgba(251, 100, 27, 0.4)',
+        transition: 'all 0.3s ease',
+        '&:hover': {
+            background: 'linear-gradient(90deg, #e85d19 0%, #db8700 100%)',
+            transform: 'translateY(-2px)',
+            boxShadow: '0 6px 20px rgba(251, 100, 27, 0.6)',
+        }
     },
-    userInfo: {
-        background: '#f1f3f6',
-        padding: '10px 15px',
-        borderRadius: 4,
-        marginBottom: 20,
-        display: 'flex',
-        alignItems: 'center'
+    summaryWrapper: {
+        [theme.breakpoints.up('md')]: {
+            paddingLeft: 20
+        }
     }
 }));
-
-const addressInitial = {
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: ''
-};
 
 const Checkout = () => {
     const classes = useStyle();
     const history = useHistory();
     const dispatch = useDispatch();
-    const { account } = useContext(LoginContext);
+    
     const cartDetails = useSelector(state => state.cart);
     const { cartItems } = cartDetails;
-    const [shippingAddress, setShippingAddress] = useState(addressInitial);
-    const [placing, setPlacing] = useState(false);
-    const [error, setError] = useState('');
 
-    // Redirect if not logged in or cart is empty
-    if (!account) {
-        history.push('/cart');
-        return null;
-    }
+    useEffect(() => {
+        if (!cartItems || cartItems.length === 0) {
+            history.push('/');
+        }
+    }, [cartItems, history]);
 
-    if (!cartItems || cartItems.length === 0) {
-        history.push('/cart');
-        return null;
-    }
+    const [shippingData, setShippingData] = useState({
+        name: '',
+        phone: '',
+        pincode: '',
+        address: '',
+        city: '',
+        state: ''
+    });
 
-    const totalMRP = cartItems.reduce((sum, item) => sum + (item.price.mrp * (item.quantity || 1)), 0);
-    const totalCost = cartItems.reduce((sum, item) => sum + (item.price.cost * (item.quantity || 1)), 0);
-    const discount = totalMRP - totalCost;
-    const deliveryCharge = 40;
-    const totalAmount = totalCost + deliveryCharge;
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const onChange = (e) => {
-        setShippingAddress({ ...shippingAddress, [e.target.name]: e.target.value });
+    const handleChange = (e) => {
+        setShippingData({ ...shippingData, [e.target.name]: e.target.value });
     };
 
-    const placeOrder = async () => {
-        if (!shippingAddress.name || !shippingAddress.phone || !shippingAddress.address || 
-            !shippingAddress.city || !shippingAddress.state || !shippingAddress.pincode) {
-            setError('Please fill in all address fields');
+    const confirmOrder = () => {
+        // Validation
+        if (!shippingData.name || !shippingData.phone || !shippingData.address || !shippingData.pincode) {
+            setErrorMsg('Please fill out all required fields.');
             return;
         }
-        if (!shippingAddress.email || !shippingAddress.email.includes('@')) {
-            setError('Please enter a valid email address for order confirmation');
-            return;
-        }
-        setError('');
-        setPlacing(true);
-        try {
-            const orderData = {
-                username: account,
-                email: shippingAddress.email,
-                items: cartItems.map(item => ({
-                    id: item.id,
-                    title: item.title.longTitle,
-                    image: item.url,
-                    price: item.price.cost,
-                    quantity: item.quantity || 1
-                })),
-                shippingAddress,
-                totalAmount,
-                paymentMethod: 'cod'
-            };
-            const response = await createOrder(orderData);
-            if (response && response.data) {
-                // Clear cart
-                dispatch({ type: actionTypes.CART_RESET });
-                localStorage.removeItem('cart');
-                history.push(`/order-confirmation/${response.data.orderId}`);
-            }
-        } catch (err) {
-            setError('Failed to place order. Please try again.');
-        }
-        setPlacing(false);
+
+        // Simulate order placement
+        const orderId = 'OD' + Math.floor(Math.random() * 9000000000) + 1000000000;
+        
+        // Reset Cart
+        dispatch({ type: CART_RESET });
+        localStorage.setItem('cart', JSON.stringify([]));
+
+        // Redirect
+        history.push(`/order-confirmation/${orderId}`);
     };
+
+    if (!cartItems.length) return null;
 
     return (
         <Box className={classes.component}>
-            <Grid container>
-                <Grid item lg={8} md={8} sm={12} xs={12} className={classes.leftComponent}>
-                    <Box className={classes.header}>
-                        <Typography style={{ fontWeight: 600, fontSize: 18 }}>Checkout</Typography>
-                    </Box>
-
-                    <Box className={classes.formContainer}>
-                        {/* Logged in user info */}
-                        <Box className={classes.userInfo}>
-                            <Typography style={{ fontSize: 14 }}>
-                                Logged in as: <strong>{account}</strong>
-                            </Typography>
-                        </Box>
-
-                        <Typography className={classes.stepTitle}>Delivery Address</Typography>
+            <Grid container spacing={3}>
+                <Grid item lg={8} md={8} sm={12} xs={12}>
+                    <Paper className={classes.container}>
+                        <Typography className={classes.header}>Delivery Address</Typography>
                         <Grid container spacing={2}>
                             <Grid item xs={12} sm={6}>
-                                <TextField
-                                    name="name"
-                                    label="Full Name *"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.name}
-                                    onChange={onChange}
-                                    className={classes.textField}
+                                <TextField 
+                                    label="Full Name" 
+                                    name="name" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
                                 />
                             </Grid>
                             <Grid item xs={12} sm={6}>
-                                <TextField
-                                    name="phone"
-                                    label="Phone Number *"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.phone}
-                                    onChange={onChange}
-                                    className={classes.textField}
+                                <TextField 
+                                    label="Phone Number" 
+                                    name="phone" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField 
+                                    label="Pincode" 
+                                    name="pincode" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField 
+                                    label="City/District/Town" 
+                                    name="city" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
                                 />
                             </Grid>
                             <Grid item xs={12}>
-                                <TextField
-                                    name="email"
-                                    label="Email Address * (for order confirmation)"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.email}
-                                    onChange={onChange}
-                                    className={classes.textField}
+                                <TextField 
+                                    label="Address (Area and Street)" 
+                                    name="address" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    multiline 
+                                    rows={3} 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
                                 />
                             </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    name="address"
-                                    label="Address (House No, Street, Area) *"
-                                    variant="outlined"
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    value={shippingAddress.address}
-                                    onChange={onChange}
-                                    className={classes.textField}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <TextField
-                                    name="city"
-                                    label="City *"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.city}
-                                    onChange={onChange}
-                                    className={classes.textField}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <TextField
-                                    name="state"
-                                    label="State *"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.state}
-                                    onChange={onChange}
-                                    className={classes.textField}
-                                />
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <TextField
-                                    name="pincode"
-                                    label="Pincode *"
-                                    variant="outlined"
-                                    fullWidth
-                                    value={shippingAddress.pincode}
-                                    onChange={onChange}
-                                    className={classes.textField}
+                            <Grid item xs={12} sm={6}>
+                                <TextField 
+                                    label="State" 
+                                    name="state" 
+                                    variant="outlined" 
+                                    fullWidth 
+                                    className={classes.textField} 
+                                    onChange={handleChange}
                                 />
                             </Grid>
                         </Grid>
-                        {error && <Typography style={{ color: '#ff6161', fontSize: 14, marginTop: 5 }}>{error}</Typography>}
-                    </Box>
-                </Grid>
-
-                <Grid item lg={4} md={4} sm={12} xs={12}>
-                    <Box className={classes.header} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                        <Typography className={classes.greyTextColor}>ORDER SUMMARY</Typography>
-                    </Box>
-                    <Box className={classes.summaryContainer}>
-                        {cartItems.map(item => (
-                            <Box key={item.id} className={classes.cartItem}>
-                                <img src={item.url} className={classes.itemImage} alt="" />
-                                <Box style={{ flex: 1 }}>
-                                    <Typography style={{ fontSize: 14 }}>{item.title.longTitle}</Typography>
-                                    <Typography style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>
-                                        ₹{item.price.cost} × {item.quantity || 1}
-                                    </Typography>
-                                </Box>
-                            </Box>
-                        ))}
-                        <Divider style={{ margin: '10px 0' }} />
-                        <Typography style={{ fontSize: 14 }}>
-                            Price ({cartItems.length} items)
-                            <span className={classes.price}>₹{totalMRP}</span>
-                        </Typography>
-                        <Typography style={{ fontSize: 14, marginTop: 8 }}>
-                            Discount
-                            <span className={classes.price} style={{ color: 'green' }}>-₹{discount}</span>
-                        </Typography>
-                        <Typography style={{ fontSize: 14, marginTop: 8 }}>
-                            Delivery Charges
-                            <span className={classes.price}>₹{deliveryCharge}</span>
-                        </Typography>
-                        <Typography className={classes.totalAmount}>
-                            Total Amount
-                            <span className={classes.price}>₹{totalAmount}</span>
-                        </Typography>
+                        
                         <Button 
                             variant="contained" 
+                            fullWidth 
                             className={classes.placeOrderBtn} 
-                            onClick={placeOrder}
-                            disabled={placing}
+                            onClick={confirmOrder}
                         >
-                            {placing ? 'Placing Order...' : 'PLACE ORDER'}
+                            Confirm Order
                         </Button>
-                    </Box>
+                    </Paper>
+                </Grid>
+                
+                <Grid item lg={4} md={4} sm={12} xs={12} className={classes.summaryWrapper}>
+                    <TotalView cartItems={cartItems} />
                 </Grid>
             </Grid>
+
+            <Snackbar
+                open={!!errorMsg}
+                autoHideDuration={3000}
+                onClose={() => setErrorMsg('')}
+                message={errorMsg}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </Box>
     );
 };
