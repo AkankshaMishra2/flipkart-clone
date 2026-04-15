@@ -115,10 +115,16 @@ const OrderHistory = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    const [loginOpen, setLoginOpen] = useState(false);
+
     useEffect(() => {
+        if (!account) {
+            setLoading(false);
+            return;
+        }
         const fetchOrders = async () => {
             try {
-                const response = await getOrdersByUser(account || 'guest');
+                const response = await getOrdersByUser(account);
                 if (response && response.data) {
                     setOrders(response.data);
                 }
@@ -129,6 +135,27 @@ const OrderHistory = () => {
         };
         fetchOrders();
     }, [account]);
+
+    if (!account) {
+        return (
+            <Box className={classes.component}>
+                <Box className={classes.header}>
+                    <Typography style={{ fontWeight: 600, fontSize: 18 }}>My Orders</Typography>
+                </Box>
+                <Box className={classes.emptyContainer}>
+                    <Typography variant="h6">Missing Orders?</Typography>
+                    <Typography className={classes.greyText} style={{ marginBottom: 20 }}>Login to view your previously placed orders.</Typography>
+                    <Button 
+                        variant="contained" 
+                        className={classes.shopBtn}
+                        onClick={() => history.push('/')}
+                    >
+                        Return Home
+                    </Button>
+                </Box>
+            </Box>
+        );
+    }
 
     if (loading) {
         return (
